@@ -1,6 +1,8 @@
 package edu.touro.las.mcon364.test2;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * ══════════════════════════════════════════════════════════════
@@ -51,11 +53,12 @@ public class InventoryManager {
 
     // TODO: initialise this field with a thread-safe Map implementation
     //       — which Map implementation from the lesson guarantees thread-safe reads and writes?
-    private final Map<String, Integer> stock = null; 
+    private final Map<String, Integer> stock = new ConcurrentHashMap<>();
 
     // TODO: declare and initialise a private final field called totalUnitsAdded that tracks the
     //       running total of units ever added, thread-safely, without using synchronized
 
+    private final AtomicInteger totalUnitsAdded = new AtomicInteger(0);
 
     /**
      * Adds {@code qty} units of {@code item} to inventory.
@@ -72,9 +75,12 @@ public class InventoryManager {
         //             that can do this in one atomic step
 
         // TODO: atomically add qty to totalUnitsAdded
-
+        if (qty <= 0) {
+            throw new IllegalArgumentException("The quantity 0 is an invalid input");
+        }
+        stock.merge(item, qty, Integer::sum);
+        totalUnitsAdded.addAndGet(qty);
     }
-
     /**
      * Removes {@code qty} units of {@code item} if sufficient stock exists.
      *
@@ -94,21 +100,33 @@ public class InventoryManager {
         //       Hint: your chosen Map has a compute() method that lets you
         //             read and write in one atomic step.
 
-        return false; //placeholder
+       if(qty <= 0) {
+           throw new IllegalArgumentException("The quantity 0 is an invalid input");
+       }
+        boolean[] removed = {false};
+        stock.compute(item, (key, value)-> {
+            if(value == null || value <= qty) {
+                removed[0] = false;
+                return value;
+            } else {
+                removed[0] = true;
+                return value-qty;
+            }
+        });
+        return removed[0];
     }
-
     /**
      * Returns the current stock for {@code item}, or 0 if unknown.
      */
     public int getStock(String item) {
-       return 0; //placeholder
+        return stock.getOrDefault(item, 0); //placeholder
     }
 
     /**
      * Returns the cumulative number of units ever added (all items combined).
      */
     public int getTotalUnitsAdded() {
-        return 0; //placeholder
+        return totalUnitsAdded.get(); //placeholder
     }
 
     /**
@@ -117,7 +135,7 @@ public class InventoryManager {
      */
     public Map<String, Integer> getSnapshot() {
         // TODO: return a defensive copy
-        return null; //placeholder
+        return Map.copyOf(stock); //placeholder
     }
 }
 
